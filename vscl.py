@@ -7,19 +7,28 @@
 import os
 import urllib2
 import json
-#import decimal
 import sys
+import subprocess
 
 api_key = os.environ['vscale_secret']
 
+def plans():
+    plans = urllib2.Request('https://api.vscale.io/v1/rplans')
+    plans.add_header('X-Token', api_key)
+    a_plans = urllib2.urlopen(plans)
+    json_plans = a_plans.read()
+    for i in (json.loads(json_plans)): print i['id'],"    	","RAM:",i['memory'], "CPU:",i['cpus'], "HDD:",i['disk']
 
 def balance():
     balance = urllib2.Request('https://api.vscale.io/v1/billing/balance')
     balance.add_header('X-Token', api_key)
     a_balance = urllib2.urlopen(balance)
     json_balance = a_balance.read()
-    billing = (json.loads(json_balance)['summ'])
-    print "Баланс:",(json.loads(json_balance)['summ'] /100)
+    bill = (json.loads(json_balance))
+    print "Статус:",bill['status'],"Денег:",bill['balance']/100,"Бонусов:",bill['bonus']/100,"	","Всего:",bill['summ']/100
+
+def ssh():
+    subprocess.call('ssh -i ~/.ssh/id_rsa_vsacle', shell=True)
 
 def process_command(command):
     if len(sys.argv) < 2:
@@ -33,34 +42,30 @@ def process_command(command):
             print_help()
     elif command == 'balance':
         balance()
-    elif command == 'viewwindow':
-        if (len(sys.argv)==3):
-            viewwindow(sys.argv[2])
-        else:
-            print_help()
-
+    elif command == 'plans':
+        plans()
+    else:
+		print_help()
 
 def print_help():
 
     print("Usage:\n")
     print("vscl balance            # Show current balance\n")
-#       vscl servers            # Show active servers
-#        vscl create NAMEOFSRV   # Create server named
-#    Options:
-#        -h --help      Display this usage information
 
 def print_command_help(command):
     COMMANDS = \
 { "balance": \
-	"All argument show summary", \
-  "servers": \
-	"Images argument show summary OS" \
+	"Show current balance", \
+  "plans": \
+	"Show available plans" \
 }
     if command in COMMANDS:
         print (COMMANDS[command])
     else:
         print ("Unknown command!")
         print_help()
+
+
 
 if __name__ == '__main__':
     process_command(sys.argv)
