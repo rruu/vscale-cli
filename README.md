@@ -6,6 +6,7 @@
 Для работы нужны:
 1. Токен для управления своим аккаунтом.
 Взять его можно на [этой странице](https://vscale.io/panel/settings/tokens/).
+
 2. Экспортировать в [переменные окружения](https://www.opennet.ru/docs/RUS/zlp/004.html).
 <pre>export vscale_secret=ABCXDAWAMKDALKWOIQOIWM193AS </pre>
 Или положить ее файле конфигурации: например .bashrc, .bash_profile, .bash_login, .profile или в других файлах, размещенных в директории пользователя.
