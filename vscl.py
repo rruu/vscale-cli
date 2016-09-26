@@ -6,15 +6,19 @@ import json
 import sys
 import subprocess
 
-api_key = os.environ['vscale_secret']
+## Вариант кофнигурации #############################################################
 
-## config
-rplan = "small"
-make_from = "debian_8_64_001_master"
-keys = [189]
-location = "spb0"
-autostart=True
-## config-end
+api_key = os.environ['vscale_secret'] # брать из окружения системы (export)
+#api_key = 'xxxxxxx' # указать перманентно
+
+rplan = "small"                         # указать тарифный план
+make_from = "debian_8_64_001_master"    # указать образ
+ssh_keys_id = [189]                     # id ssh публичного ключа в vsacle
+sshkey = "~/.ssh/id_rsa_vscale"         # путь до приватного ключа
+location = "spb0"                       # локация серверов
+autostart=True                          # включать виртуалку сразу после создания
+
+####################################################################################
 
 def plans():
     plans = urllib2.Request('https://api.vscale.io/v1/rplans')
@@ -42,19 +46,31 @@ def plans_iso(n):
         print_help()
 
 def del_srv(arg1):
-    server_id = str(arg1)
-    delete = urllib2.Request('https://api.vscale.io/v1/scalets/' + server_id)
-    delete.add_header('X-Token', api_key)
-    delete.get_method = lambda: 'DELETE'
-    a_delete = urllib2.urlopen(delete)
-    print "OK"
+    name_for_del = str(arg1)
+    active = urllib2.Request('https://api.vscale.io/v1/scalets')
+    active.add_header('X-Token', api_key)
+    a_active = urllib2.urlopen(active)
+    json_active = a_active.read()
+    if (json.loads(json_active))[0]['name'] == name_for_del:
+        ctid = (json.loads(json_active))[0]['ctid']
+        ctid = str(ctid)
+        delete = urllib2.Request('https://api.vscale.io/v1/scalets/' + ctid)
+        delete.add_header('X-Token', api_key)
+        delete.get_method = lambda: 'DELETE'
+        a_delete = urllib2.urlopen(delete)
+        print "Сервер:", name_for_del, "id:", ctid, "удален"
+    else:
+        print "Сервер с именем:", name_for_del, "не найден"
 
 def active():
     active = urllib2.Request('https://api.vscale.io/v1/scalets')
     active.add_header('X-Token', api_key)
     a_active = urllib2.urlopen(active)
     json_active = a_active.read()
-    for i in (json.loads(json_active)): print "ID: ",i['ctid'],"Status: ",i['status'], "Name: ",i['name'],"img: ",i['made_from'],"IP: ",i['public_address']['address']
+    if not json.loads(json_active):
+        print "Список серверов пуст"
+    else:
+        for i in (json.loads(json_active)): print "ID: ",i['ctid'],"Status: ",i['status'], "Name: ",i['name'],"img: ",i['made_from'],"IP: ",i['public_address']['address']
 
 def balance():
     balance = urllib2.Request('https://api.vscale.io/v1/billing/balance')
@@ -66,8 +82,7 @@ def balance():
 
 def create_server(arg1):
     name = str(arg1)
-    location = "spb0"
-    data = {'make_from': make_from,'rplan': rplan,'name': name,'keys': keys,'location': location,'do_start':bool(autostart)}
+    data = {'make_from': make_from,'rplan': rplan,'name': name,'keys': ssh_keys_id,'location': location,'do_start':bool(autostart)}
     data = json.dumps(data)
     a = urllib2.Request('https://api.vscale.io/v1/scalets', data)
     a.add_header('X-Token', api_key)
@@ -97,11 +112,19 @@ def info(arg1):
     reqstat = urllib2.urlopen(srvreq)
     json_srv = reqstat.read()
     abc = json.loads(json_srv)
-
     print "ID:" , abc['ctid'], "    IP:", abc['public_address']['address'], "   ISO:", abc['made_from']
 
-def ssh():
-    subprocess.call('ssh -i ~/.ssh/id_rsa_vsacle', shell=True)
+def ssh(arg1):
+    name_for_ip = str(arg1)
+    active = urllib2.Request('https://api.vscale.io/v1/scalets')
+    active.add_header('X-Token', api_key)
+    a_active = urllib2.urlopen(active)
+    json_active = a_active.read()
+    if (json.loads(json_active))[0]['name'] == name_for_ip:
+        ipaddr = (json.loads(json_active))[0]['public_address']['address']
+        ssh = subprocess.call(["ssh " + "root@"+ipaddr + " -i " + sshkey], shell=True)
+    else:
+        print "Сервер", name_for_ip, "не найден"
 
 def process_command(command):
     if len(sys.argv) < 2:
@@ -112,7 +135,12 @@ def process_command(command):
         if (len(sys.argv) == 3):
             del_srv(sys.argv[2])
         else:
-            print "Укажите id для удаления"
+            print "Укажите _имя сервера_ для удаления"
+    elif command == 'ssh':
+        if (len(sys.argv) == 3):
+            ssh(sys.argv[2])
+        else:
+            print "Укажите _имя сервера_ для подключения"
     elif command == 'iso':
         if (len(sys.argv) == 3):
             plans_iso(sys.argv[2])
@@ -127,11 +155,9 @@ def process_command(command):
         if (len(sys.argv) == 3):
            create_server(sys.argv[2])
         else:
-           print_help()
+            print "Укажите _имя сервера_ для создания"
     elif command == 'plans':
         plans()
-#    elif command == 'create':
-#        create_server()
     elif command == 'scalets':
         active()
     elif command == 'balance':
@@ -161,22 +187,15 @@ def plans_iso(n):
 
 def print_help():
 
-    print("Usage:\n")
-    print("vscl avalible command")
-    print("vscl balance         # show current balance")
-    print("vscl plans           # show avalible plans")
-    print("vscl iso small / medium / large  # show iso for plan")
-    print("vscl scalets         # display active instanse")
-    print("vscl del id      # delete instance by id")
+    print("vscl доступные команды:\n")
+    print("vscl balance                     # показать текущий баланс")
+    print("vscl plans                       # показать доступные планы")
+    print("vscl iso small                   # показать образы доступны для плана small")
+    print("vscl scalets                     # показать созданые сервера")
+    print("vscl del name                    # удалить сервер с именем name")
+    print("vscl create name                 # создать сервер с именем name")
+    print("vscl ssh name                    # подключиться к сервер name по ssh")
 
-
-def print_command_help(command):
-    COMMANDS = \
-{ "balance": \
-	"Show current balance", \
-  "plans iso": \
-	"Show available plans" \
-}
 
 if __name__ == '__main__':
     process_command(sys.argv)
